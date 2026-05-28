@@ -1,0 +1,23 @@
+# Transcription job working dirs (uploaded audio + results)
+uploads/*
+!uploads/.gitkeep
+
+# Python
+__pycache__/
+*.py[cod]
+.venv/
+venv/
+*.egg-info/
+.pytest_cache/
+
+# Env / secrets (HuggingFace token etc.)
+.env
+
+# macOS
+.DS_Store
+
+# Locally-built launcher app (each machine builds its own via setup.command)
+AvidMarkup.app/
+
+# Playwright MCP test artifacts
+.playwright-mcp/

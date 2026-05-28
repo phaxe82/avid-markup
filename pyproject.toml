@@ -1,0 +1,41 @@
+[project]
+name = "avid-markup"
+version = "0.1.0"
+description = "Transcribe a scene's audio, label speakers, and export Avid Media Composer markers."
+requires-python = ">=3.10,<3.13"
+dependencies = [
+    "fastapi>=0.115",
+    "uvicorn[standard]>=0.30",
+    "python-multipart>=0.0.9",
+    "timecode>=1.4.1",
+    "python-dotenv>=1.0",
+]
+
+[project.optional-dependencies]
+# Heavy ML stack for local transcription + diarization. Installed separately so the
+# web app and unit tests don't require torch/pyannote to be present.
+ml = [
+    "whisperx>=3.1",
+    # GPU transcription on Apple Silicon (much faster than CPU faster-whisper).
+    "mlx-whisper>=0.4; platform_system=='Darwin' and platform_machine=='arm64'",
+    # Local LLM for the speaker-label correction pass (Apple Silicon GPU).
+    # Capped <0.30: 0.30+ pulls transformers>=5 / huggingface-hub>=1, which break
+    # whisperx (needs huggingface-hub<1.0.0).
+    "mlx-lm>=0.19,<0.30; platform_system=='Darwin' and platform_machine=='arm64'",
+]
+dev = [
+    "pytest>=8",
+    "httpx>=0.27",
+]
+# Native macOS window wrapper. Spawns the existing uvicorn server as a subprocess
+# and points a pywebview/WKWebView window at it (see launcher.py).
+app = [
+    "pywebview>=5.0",
+]
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+pythonpath = ["."]
+
+[tool.setuptools]
+packages = ["backend"]

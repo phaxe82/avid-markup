@@ -1,0 +1,144 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Avid Markup</title>
+  <link rel="stylesheet" href="/styles.css?v=11" />
+</head>
+<body>
+  <header class="topbar">
+    <div class="wrap">
+      <h1>Avid&nbsp;Markup</h1>
+      <p class="tagline">Transcribe a scene, label the speakers, export Avid markers.</p>
+    </div>
+  </header>
+
+  <main class="wrap">
+    <!-- Step 1: upload -->
+    <section class="card" id="step-upload">
+      <h2><span class="step">1</span> Audio</h2>
+      <p id="diar-note" class="note"></p>
+      <div class="row">
+        <input type="file" id="file" accept=".mp3,.wav,.m4a,.aac,.flac,.ogg" />
+      </div>
+      <div class="row controls">
+        <label>Model
+          <select id="model-size">
+            <option value="tiny">tiny (fastest)</option>
+            <option value="base">base</option>
+            <option value="small">small</option>
+            <option value="medium" selected>medium (most accurate)</option>
+          </select>
+        </label>
+        <label>Language
+          <select id="language">
+            <option value="en" selected>English</option>
+            <option value="">Auto-detect</option>
+            <option value="cy">Welsh</option>
+            <option value="ga">Irish</option>
+            <option value="gd">Scottish Gaelic</option>
+            <option value="fr">French</option>
+            <option value="de">German</option>
+            <option value="es">Spanish</option>
+            <option value="it">Italian</option>
+          </select>
+        </label>
+        <label>Min speakers <input type="number" id="min-speakers" min="1" max="20" placeholder="auto" /></label>
+        <label>Max speakers <input type="number" id="max-speakers" min="1" max="20" placeholder="auto" /></label>
+      </div>
+      <div class="row">
+        <label class="check"><input type="checkbox" id="llm-correct" checked /> Refine speaker labels with local AI <span class="note" style="margin:0;">— a second pass fixes obvious mis-attributions (adds a little time)</span></label>
+      </div>
+      <div class="row">
+        <button id="transcribe-btn" class="primary">Transcribe</button>
+        <span id="status" class="status"></span>
+      </div>
+    </section>
+
+    <!-- Step 2: speakers -->
+    <section class="card hidden" id="step-speakers">
+      <h2><span class="step">2</span> Who's speaking?</h2>
+      <p class="note">Play a sample of each voice, then give them a name. The name prefixes every line in the marker comment.</p>
+      <div id="speaker-list"></div>
+    </section>
+
+    <!-- Step 3: transcript -->
+    <section class="card hidden" id="step-transcript">
+      <h2><span class="step">3</span> Transcript</h2>
+      <p class="note">Fix any wording, reassign a speaker, or untick a line to leave it out.</p>
+      <div class="row controls">
+        <label>Marker grouping
+          <select id="group-mode">
+            <option value="turn" selected>Whole speaker turn (one marker per turn)</option>
+            <option value="sentence">Complete sentences</option>
+            <option value="raw">Raw fragments</option>
+          </select>
+        </label>
+        <span class="note" style="margin:0;">Changing this re-groups instantly — no need to re-transcribe. Do this before editing lines.</span>
+      </div>
+      <div class="row controls" id="trim-controls">
+        <label>AI trim
+          <select id="trim-level">
+            <option value="dedup" selected>Duplicates only (safest)</option>
+            <option value="light">Light — duplicates + out-of-context</option>
+            <option value="balanced">Balanced — also filler/small talk</option>
+            <option value="aggressive">Aggressive — key beats only</option>
+          </select>
+        </label>
+        <label class="grow">What matters in this scene? (optional)
+          <input type="text" id="trim-guidance" placeholder="e.g. keep anything about the wedding, drop small talk" />
+        </label>
+        <button id="trim-btn" class="secondary">Trim low-value lines (AI)</button>
+        <button id="reinclude-btn" class="secondary">Re-include all</button>
+        <span id="trim-status" class="status"></span>
+      </div>
+      <p class="note" style="margin-top:0;"><strong>Duplicates only</strong> removes mlx's repeated lines mechanically (no AI judgement) — safest. Higher levels add AI trimming on top. Lines are only un-ticked, never deleted — review and re-tick anything. Re-run after changing the grouping.</p>
+      <div class="table-head">
+        <span class="col-tc">Time</span>
+        <span class="col-spk">Speaker</span>
+        <span class="col-txt">Line</span>
+        <span class="col-inc">Keep</span>
+      </div>
+      <div id="segment-list"></div>
+    </section>
+
+    <!-- Step 4: output -->
+    <section class="card hidden" id="step-output">
+      <h2><span class="step">4</span> Export</h2>
+      <div class="row controls">
+        <label>Start timecode
+          <input type="text" id="start-tc" class="mono" value="10:00:00:00" placeholder="HH:MM:SS:FF" />
+        </label>
+        <label>Track <input type="text" id="track" value="V1" /></label>
+        <label>Author <input type="text" id="author" value="Transcriber" /></label>
+      </div>
+      <div class="row controls">
+        <label>Colour
+          <select id="color-mode">
+            <option value="single" selected>Single colour</option>
+            <option value="per_speaker">One colour per speaker</option>
+          </select>
+        </label>
+        <label id="single-color-wrap">Dialogue colour
+          <select id="single-color"></select>
+        </label>
+        <label>Marker length
+          <select id="duration-mode">
+            <option value="point" selected>Point (1 frame)</option>
+            <option value="span">Span the line</option>
+          </select>
+        </label>
+      </div>
+      <div class="row">
+        <button id="export-btn" class="primary">Download Avid markers (.txt)</button>
+        <span id="export-status" class="status"></span>
+      </div>
+      <p class="note">Import in Media&nbsp;Composer: <strong>Tools → Markers</strong>, right-click the list → <strong>Import</strong>.</p>
+    </section>
+  </main>
+
+  <audio id="player" preload="auto"></audio>
+  <script src="/app.js?v=11" defer></script>
+</body>
+</html>
