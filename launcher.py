@@ -54,14 +54,31 @@ def _free_port() -> int:
         return s.getsockname()[1]
 
 
+def _server_env() -> dict[str, str]:
+    """Environment for the server subprocess.
+
+    When launched from AvidMarkup.app (a GUI app), macOS gives the process a minimal
+    PATH without Homebrew, so whisperx can't find `ffmpeg` (installed at
+    /opt/homebrew/bin). Prepend the usual Homebrew locations so ffmpeg resolves the
+    same way it does from a terminal. (HF_TOKEN still comes from the gitignored .env
+    via load_dotenv in backend/app.py, regardless of launch method.)
+    """
+    env = os.environ.copy()
+    parts = env.get("PATH", "").split(os.pathsep)
+    for brew in ("/usr/local/bin", "/opt/homebrew/bin"):
+        if brew not in parts:
+            parts.insert(0, brew)
+    env["PATH"] = os.pathsep.join(p for p in parts if p)
+    return env
+
+
 def _start_server(port: int) -> subprocess.Popen:
     """Launch the uvicorn server in its own process group (so we can reap the whole
-    group on quit) with the full parent environment (so an exported HF_TOKEN wins,
-    matching terminal behaviour)."""
+    group on quit), with Homebrew on PATH so ffmpeg is found under a GUI launch."""
     return subprocess.Popen(
         [sys.executable, "-m", "uvicorn", "backend.app:app", "--port", str(port)],
         cwd=str(BASE_DIR),
-        env=os.environ.copy(),
+        env=_server_env(),
         start_new_session=True,
         stderr=subprocess.PIPE,
     )
