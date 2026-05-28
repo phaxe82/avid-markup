@@ -136,6 +136,23 @@ when installed; otherwise it falls back to CPU faster-whisper. Overrides:
 mlx-whisper sets `condition_on_previous_text=False`, which suppresses Whisper's
 repeated/looped-line hallucinations over silence and music.
 
+### Alternative engine: Parakeet (English-only, experimental)
+
+Whisper is the default. To A/B against **NVIDIA Parakeet** — which is trained to emit
+nothing over non-speech, so it rarely produces the phantom lines Whisper does on music
+and silence — launch with:
+
+```bash
+AVID_ASR_ENGINE=parakeet uvicorn backend.app:app --port 8000
+# or, as the native app:  AVID_ASR_ENGINE=parakeet python launcher.py
+```
+
+Same diarization, grouping, and export — only the transcription engine changes, so you
+can compare the two transcripts on the same scene. Trade-offs: Parakeet is **English-only**
+(no Welsh/Irish/Gaelic), and since diarization dominates runtime on long files, total time
+barely changes — the win is cleaner transcripts (fewer junk markers), not speed. Requires
+the `ml` extra (which now includes `parakeet-mlx`).
+
 ### Speaker accuracy (local AI correction)
 
 Diarization gets *who said what* right most of the time, but not always. With

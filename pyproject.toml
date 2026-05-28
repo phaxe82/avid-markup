@@ -22,6 +22,9 @@ ml = [
     # Capped <0.30: 0.30+ pulls transformers>=5 / huggingface-hub>=1, which break
     # whisperx (needs huggingface-hub<1.0.0).
     "mlx-lm>=0.19,<0.30; platform_system=='Darwin' and platform_machine=='arm64'",
+    # Optional alternative ASR engine (English-only): NVIDIA Parakeet on Apple
+    # Silicon GPU. Off by default; enable with AVID_ASR_ENGINE=parakeet.
+    "parakeet-mlx>=0.3; platform_system=='Darwin' and platform_machine=='arm64'",
 ]
 dev = [
     "pytest>=8",

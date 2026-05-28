@@ -96,10 +96,13 @@ def _run_transcription(
 @app.get("/api/config")
 def config() -> dict:
     from backend.llm import mlx_lm_available
+    from backend.transcribe import _asr_engine, _parakeet_available
 
     return {
         "diarization_enabled": bool(os.environ.get("HF_TOKEN")),
         "llm_available": mlx_lm_available(),
+        "asr_engine": _asr_engine(),
+        "parakeet_available": _parakeet_available(),
         "model_size": DEFAULT_MODEL_SIZE,
         "default_fps": DEFAULT_FPS,
     }
