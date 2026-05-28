@@ -1,6 +1,7 @@
 from fastapi.testclient import TestClient
 
-from backend.app import app
+import backend.app as app_module
+from backend.app import _write_env_token, app
 
 client = TestClient(app)
 
@@ -62,3 +63,32 @@ def test_export_rejects_bad_timecode():
 
 def test_job_status_unknown():
     assert client.get("/api/jobs/does-not-exist").status_code == 404
+
+
+def test_write_env_token_creates_replaces_and_preserves(tmp_path):
+    env = tmp_path / ".env"
+    # creates the file
+    _write_env_token("hf_aaa", env)
+    assert env.read_text() == "HF_TOKEN=hf_aaa\n"
+    # replaces the existing line, keeps other content
+    env.write_text("# comment\nHF_TOKEN=hf_old\nOTHER=1\n")
+    _write_env_token("hf_new", env)
+    body = env.read_text()
+    assert "HF_TOKEN=hf_new" in body
+    assert "hf_old" not in body
+    assert "# comment" in body and "OTHER=1" in body
+
+
+def test_set_token_rejects_garbage():
+    assert client.post("/api/token", json={"token": "not-a-token"}).status_code == 400
+    assert client.post("/api/token", json={"token": ""}).status_code == 400
+
+
+def test_set_token_saves_and_enables(tmp_path, monkeypatch):
+    monkeypatch.setattr(app_module, "ENV_PATH", tmp_path / ".env")
+    monkeypatch.delenv("HF_TOKEN", raising=False)  # restored at teardown
+    r = client.post("/api/token", json={"token": "hf_TESTtoken123"})
+    assert r.status_code == 200
+    assert r.json()["diarization_enabled"] is True
+    assert (tmp_path / ".env").read_text() == "HF_TOKEN=hf_TESTtoken123\n"
+    assert client.get("/api/config").json()["diarization_enabled"] is True

@@ -6,6 +6,7 @@ Run with:  uvicorn backend.app:app --reload
 from __future__ import annotations
 
 import os
+import re
 import threading
 import uuid
 from dataclasses import asdict
@@ -27,7 +28,8 @@ UPLOADS_DIR.mkdir(exist_ok=True)
 
 # Load local secrets (HF_TOKEN) from a gitignored .env. A value already exported
 # in the shell takes precedence (load_dotenv doesn't override existing env vars).
-load_dotenv(BASE_DIR / ".env")
+ENV_PATH = BASE_DIR / ".env"
+load_dotenv(ENV_PATH)
 
 ALLOWED_EXTENSIONS = {".mp3", ".wav", ".m4a", ".aac", ".flac", ".ogg"}
 DEFAULT_MODEL_SIZE = os.environ.get("WHISPER_MODEL", "medium")
@@ -101,6 +103,43 @@ def config() -> dict:
         "model_size": DEFAULT_MODEL_SIZE,
         "default_fps": DEFAULT_FPS,
     }
+
+
+# Real HuggingFace tokens are "hf_" followed by alphanumerics. Validating the shape
+# also blocks newline/injection into the .env file written below.
+_HF_TOKEN_RE = re.compile(r"hf_[A-Za-z0-9]+")
+
+
+class TokenRequest(BaseModel):
+    token: str
+
+
+def _write_env_token(token: str, env_path: Path) -> None:
+    """Persist HF_TOKEN to the gitignored .env, replacing any existing line so the
+    setting survives a restart. Other lines (e.g. comments) are preserved."""
+    lines = []
+    if env_path.exists():
+        lines = [ln for ln in env_path.read_text().splitlines() if not ln.startswith("HF_TOKEN=")]
+    lines.append(f"HF_TOKEN={token}")
+    env_path.write_text("\n".join(lines) + "\n")
+
+
+@app.post("/api/token")
+def set_token(req: TokenRequest) -> dict:
+    """Save the user's HuggingFace token from the UI so they never touch a terminal.
+
+    Writes it to the local gitignored .env and applies it to the running server
+    immediately (the next transcription picks it up — no restart). The token never
+    leaves this machine."""
+    token = req.token.strip()
+    if not _HF_TOKEN_RE.fullmatch(token):
+        raise HTTPException(
+            status_code=400,
+            detail="That doesn't look like a HuggingFace token — it should start with 'hf_'.",
+        )
+    _write_env_token(token, ENV_PATH)
+    os.environ["HF_TOKEN"] = token
+    return {"diarization_enabled": True}
 
 
 @app.post("/api/transcribe")

@@ -50,10 +50,11 @@ async function init() {
   $("model-size").value = cfg.model_size || "small";
   const note = $("diar-note");
   if (cfg.diarization_enabled) {
-    note.textContent = "Speaker diarization is on — each voice will be separated automatically.";
+    note.textContent = "Speaker separation is on — each voice will be separated automatically.";
   } else {
-    note.textContent = "No HuggingFace token set, so diarization is OFF — you'll get one unlabelled speaker. See the README to enable it.";
+    note.textContent = "Speaker separation is off — add a free HuggingFace token to turn it on (one-time).";
     note.classList.add("warn");
+    $("token-card").classList.remove("hidden");
   }
   if (!cfg.llm_available) {
     const llm = $("llm-correct");
@@ -436,6 +437,32 @@ $("reinclude-btn").addEventListener("click", () => {
   setTrimStatus("All lines re-included.");
 });
 
+// ---- HuggingFace token (enable speaker separation without touching a terminal) ----
+$("token-save").addEventListener("click", async () => {
+  const token = $("token-input").value.trim();
+  if (!token) { setTokenStatus("Paste your token first.", true); return; }
+  $("token-save").disabled = true;
+  setTokenStatus("Saving…");
+  try {
+    const res = await fetch("/api/token", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ token }),
+    });
+    if (!res.ok) throw new Error((await res.json()).detail || res.statusText);
+    await res.json();
+    $("token-input").value = "";
+    $("token-card").classList.add("hidden");
+    const note = $("diar-note");
+    note.textContent = "Speaker separation is on — each voice will be separated automatically.";
+    note.classList.remove("warn");
+  } catch (e) {
+    setTokenStatus(`Error: ${e.message}`, true);
+  } finally {
+    $("token-save").disabled = false;
+  }
+});
+
 function setStatus(msg, isError = false) {
   const el = $("status");
   el.textContent = msg;
@@ -448,6 +475,11 @@ function setExportStatus(msg, isError = false) {
 }
 function setTrimStatus(msg, isError = false) {
   const el = $("trim-status");
+  el.textContent = msg;
+  el.classList.toggle("error", isError);
+}
+function setTokenStatus(msg, isError = false) {
+  const el = $("token-status");
   el.textContent = msg;
   el.classList.toggle("error", isError);
 }

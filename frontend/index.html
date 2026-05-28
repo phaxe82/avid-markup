@@ -4,7 +4,7 @@
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
   <title>Avid Markup</title>
-  <link rel="stylesheet" href="/styles.css?v=11" />
+  <link rel="stylesheet" href="/styles.css?v=12" />
 </head>
 <body>
   <header class="topbar">
@@ -19,6 +19,19 @@
     <section class="card" id="step-upload">
       <h2><span class="step">1</span> Audio</h2>
       <p id="diar-note" class="note"></p>
+      <div id="token-card" class="token-card hidden">
+        <p class="note" style="margin-bottom:10px;">Speaker separation needs a free HuggingFace token (one-time). It's saved on this machine only.</p>
+        <ol class="token-steps">
+          <li><a href="https://huggingface.co/settings/tokens" target="_blank" rel="noopener">Create a free token ↗</a> — a "Read" token is enough.</li>
+          <li><a href="https://huggingface.co/pyannote/speaker-diarization-community-1" target="_blank" rel="noopener">Open the model page ↗</a> and click <strong>Agree and access repository</strong>.</li>
+          <li>Paste the token below and save.</li>
+        </ol>
+        <div class="row">
+          <input type="password" id="token-input" class="grow-input" placeholder="hf_…" autocomplete="off" />
+          <button id="token-save" class="primary">Save &amp; enable</button>
+          <span id="token-status" class="status"></span>
+        </div>
+      </div>
       <div class="row">
         <input type="file" id="file" accept=".mp3,.wav,.m4a,.aac,.flac,.ogg" />
       </div>
@@ -139,6 +152,6 @@
   </main>
 
   <audio id="player" preload="auto"></audio>
-  <script src="/app.js?v=11" defer></script>
+  <script src="/app.js?v=12" defer></script>
 </body>
 </html>
