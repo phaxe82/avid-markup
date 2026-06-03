@@ -19,16 +19,18 @@ from fastapi.staticfiles import StaticFiles
 from pydantic import BaseModel
 
 from backend.avid_markers import MarkerSettings, Segment, build_markers
+from backend.paths import data_dir, resource_dir
 from backend.timecode_utils import DEFAULT_FPS, validate_timecode
 
-BASE_DIR = Path(__file__).resolve().parent.parent
-FRONTEND_DIR = BASE_DIR / "frontend"
-UPLOADS_DIR = BASE_DIR / "uploads"
+# Read-only resources come from the bundle (or repo in dev); writable state goes to a
+# user-writable dir (Application Support when frozen) — see backend.paths.
+FRONTEND_DIR = resource_dir() / "frontend"
+UPLOADS_DIR = data_dir() / "uploads"
 UPLOADS_DIR.mkdir(exist_ok=True)
 
 # Load local secrets (HF_TOKEN) from a gitignored .env. A value already exported
 # in the shell takes precedence (load_dotenv doesn't override existing env vars).
-ENV_PATH = BASE_DIR / ".env"
+ENV_PATH = data_dir() / ".env"
 load_dotenv(ENV_PATH)
 
 ALLOWED_EXTENSIONS = {".mp3", ".wav", ".m4a", ".aac", ".flac", ".ogg"}
@@ -96,10 +98,19 @@ def _run_transcription(
 @app.get("/api/config")
 def config() -> dict:
     from backend.llm import mlx_lm_available
-    from backend.transcribe import _asr_engine, _parakeet_available
+    from backend.transcribe import _asr_engine, _diarizer, _parakeet_available, _sherpa_available
+
+    # Diarization is on by default via the token-free sherpa-onnx diarizer (no HF token).
+    # A token still enables the pyannote path (selected, or as a fallback when sherpa's
+    # models are absent) — mirror backend.transcribe's selection so the UI matches.
+    token_set = bool(os.environ.get("HF_TOKEN"))
+    use_sherpa = _diarizer() == "sherpa" and _sherpa_available()
+    diarization_enabled = use_sherpa or token_set
 
     return {
-        "diarization_enabled": bool(os.environ.get("HF_TOKEN")),
+        "diarization_enabled": diarization_enabled,
+        "diarizer": "sherpa" if use_sherpa else ("pyannote" if token_set else "none"),
+        "token_set": token_set,
         "llm_available": mlx_lm_available(),
         "asr_engine": _asr_engine(),
         "parakeet_available": _parakeet_available(),

@@ -19,5 +19,13 @@ venv/
 # Locally-built launcher app (each machine builds its own via setup.command)
 AvidMarkup.app/
 
+# Diarization models — downloaded via scripts/fetch_diarization_models.sh, bundled by
+# the .app build. Not committed (binary, redistributed ungated by k2-fsa).
+models/
+
+# PyInstaller freeze artifacts (multi-GB; produced by packaging/build_app.sh)
+build/
+dist/
+
 # Playwright MCP test artifacts
 .playwright-mcp/

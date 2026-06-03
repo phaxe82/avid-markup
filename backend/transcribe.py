@@ -83,6 +83,21 @@ def _load_diarization_pipeline(hf_token: str, device: str, model_name: str):
     return DiarizationPipeline(**kwargs)
 
 
+def _diarizer() -> str:
+    """Selected diarizer: 'sherpa' (default, token-free) or 'pyannote' (needs HF token)."""
+    return os.environ.get("AVID_DIARIZER", "sherpa").strip().lower()
+
+
+def _sherpa_available() -> bool:
+    """True if the token-free sherpa-onnx diarizer can run (installed + models present).
+
+    Delegates to backend.diarize_sherpa, which checks via find_spec + file existence and
+    pulls in no heavy ML dependencies."""
+    from backend.diarize_sherpa import available
+
+    return available()
+
+
 # Apple-Silicon GPU transcription via MLX. Maps our UI model sizes to the
 # mlx-community model repos.
 MLX_MODEL_REPOS = {
@@ -109,11 +124,15 @@ def _mlx_available() -> bool:
     return importlib.util.find_spec("mlx_whisper") is not None
 
 
-def _transcribe_mlx(audio_path: str, model_size: str, language: str | None = None) -> dict:
+def _transcribe_mlx(audio, model_size: str, language: str | None = None) -> dict:
     """Transcribe on the GPU via MLX. `condition_on_previous_text=False` curbs the
     repeated/looped-line hallucinations Whisper produces over silence and music.
     Pass `language` (e.g. "en") to skip auto-detection, which Whisper often gets
     wrong on music/ambiguous intros.
+
+    `audio` is the pre-decoded 16 kHz mono float32 array (from backend.audio.load_audio),
+    not a path — mlx_whisper.transcribe accepts an array and so skips its own ffmpeg
+    subprocess, keeping the frozen app ffmpeg-free.
     """
     import mlx_whisper
 
@@ -121,7 +140,7 @@ def _transcribe_mlx(audio_path: str, model_size: str, language: str | None = Non
     kwargs = {"path_or_hf_repo": repo, "condition_on_previous_text": False}
     if language:
         kwargs["language"] = language
-    return mlx_whisper.transcribe(audio_path, **kwargs)
+    return mlx_whisper.transcribe(audio, **kwargs)
 
 
 # Optional alternative ASR engine: NVIDIA Parakeet on Apple Silicon (English-only).
@@ -223,8 +242,10 @@ def transcribe_and_diarize(
     back to Whisper's segment-level timestamps — diarization still labels each
     segment, only sub-segment word timing is lost (markers don't use it).
 
-    If `hf_token` is missing, diarization is skipped and every segment gets an
-    empty speaker label (still a usable plain transcript).
+    Diarization uses the token-free sherpa-onnx diarizer by default (no `hf_token`
+    needed). Set AVID_DIARIZER=pyannote to use pyannote instead, which requires
+    `hf_token`. If neither diarizer is available, diarization is skipped and every
+    segment gets an empty speaker label (still a usable plain transcript).
 
     When `llm_correct` is set and a local LLM is available, a final pass re-reads
     the diarized transcript and fixes obvious speaker-label mistakes.
@@ -237,11 +258,18 @@ def transcribe_and_diarize(
     torch_device = torch_device or _pick_torch_device()
     use_parakeet = _asr_engine() == "parakeet" and _parakeet_available()
 
-    audio = whisperx.load_audio(audio_path)
+    # Decode once with PyAV (LGPL ffmpeg libs, in-process) and feed the array to every
+    # stage — so the frozen app needs no external ffmpeg binary. (whisperx.load_audio
+    # would shell out to the ffmpeg CLI.)
+    from backend.audio import load_audio
+
+    audio = load_audio(audio_path)
 
     _progress("Transcribing audio…")
     if use_parakeet:
         # Parakeet (English) supplies its own timestamps — skip whisperx alignment.
+        # NB: parakeet-mlx loads audio via the ffmpeg CLI, so this experimental engine
+        # still needs ffmpeg on PATH (the default Whisper path does not).
         from backend.mlx_runtime import run_on_mlx_thread
 
         parakeet_model = os.environ.get("AVID_PARAKEET_MODEL", DEFAULT_PARAKEET_MODEL)
@@ -251,7 +279,7 @@ def transcribe_and_diarize(
         if _mlx_available():
             from backend.mlx_runtime import run_on_mlx_thread
 
-            base = run_on_mlx_thread(_transcribe_mlx, audio_path, model_size, force_language)
+            base = run_on_mlx_thread(_transcribe_mlx, audio, model_size, force_language)
         else:
             model = whisperx.load_model(model_size, device, compute_type=compute_type)
             base = model.transcribe(audio, batch_size=batch_size, language=force_language)
@@ -268,7 +296,22 @@ def transcribe_and_diarize(
             # alignment failed — keep Whisper's segment-level timestamps and carry on.
             result = {"segments": base["segments"]}
 
-    if token:
+    diarizer = _diarizer()
+    use_sherpa = diarizer == "sherpa" and _sherpa_available()
+    # pyannote needs an HF token; sherpa needs none. Fall back to pyannote only when
+    # sherpa is unavailable *and* a token is present (else we skip diarization).
+    use_pyannote = (diarizer == "pyannote" or not use_sherpa) and bool(token)
+
+    if use_sherpa:
+        _progress("Identifying speakers…")
+        from backend.diarize_sherpa import diarize_samples
+
+        # sherpa returns (start, end, SPEAKER_xx) intervals — assign by time overlap,
+        # which works for both the Whisper and Parakeet transcripts (no word-level data
+        # needed, and pyannote's word-level assign_word_speakers doesn't apply here).
+        diarized = diarize_samples(audio, 16000, min_speakers, max_speakers)
+        _assign_speakers_by_overlap(result["segments"], diarized)
+    elif use_pyannote:
         _progress("Identifying speakers…")
         diarize_kwargs = {}
         if min_speakers is not None:

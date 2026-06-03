@@ -4,7 +4,7 @@
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
   <title>Avid Markup</title>
-  <link rel="stylesheet" href="/styles.css?v=12" />
+  <link rel="stylesheet" href="/styles.css?v=13" />
 </head>
 <body>
   <header class="topbar">
@@ -20,7 +20,7 @@
       <h2><span class="step">1</span> Audio</h2>
       <p id="diar-note" class="note"></p>
       <div id="token-card" class="token-card hidden">
-        <p class="note" style="margin-bottom:10px;">Speaker separation needs a free HuggingFace token (one-time). It's saved on this machine only.</p>
+        <p class="note" style="margin-bottom:10px;">Built-in speaker separation isn't available right now. You can switch on the pyannote engine with a free HuggingFace token (one-time, saved on this machine only).</p>
         <ol class="token-steps">
           <li><a href="https://huggingface.co/settings/tokens" target="_blank" rel="noopener">Create a free token ↗</a> — a "Read" token is enough.</li>
           <li><a href="https://huggingface.co/pyannote/speaker-diarization-community-1" target="_blank" rel="noopener">Open the model page ↗</a> and click <strong>Agree and access repository</strong>.</li>
@@ -152,6 +152,6 @@
   </main>
 
   <audio id="player" preload="auto"></audio>
-  <script src="/app.js?v=12" defer></script>
+  <script src="/app.js?v=13" defer></script>
 </body>
 </html>
