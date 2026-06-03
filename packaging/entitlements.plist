@@ -1,0 +1,19 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<plist version="1.0">
+<dict>
+  <!-- torch / mlx JIT-compile and load unsigned executable memory at runtime; without
+       these, a hardened-runtime + notarized build crashes on first model load. -->
+  <key>com.apple.security.cs.allow-jit</key>
+  <true/>
+  <key>com.apple.security.cs.allow-unsigned-executable-memory</key>
+  <true/>
+  <!-- The bundle loads many third-party .dylibs (torch, mlx, onnxruntime, PyAV/ffmpeg,
+       sherpa) that aren't signed by our Team ID. -->
+  <key>com.apple.security.cs.disable-library-validation</key>
+  <true/>
+  <!-- Some ML libs honour DYLD_* / library-path env vars set by the PyInstaller loader. -->
+  <key>com.apple.security.cs.allow-dyld-environment-variables</key>
+  <true/>
+</dict>
+</plist>

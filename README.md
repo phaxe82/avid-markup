@@ -4,8 +4,9 @@ Transcribe a scene's audio, separate and label the speakers, and export a
 marker file that **Avid Media Composer** imports directly onto a sequence —
 instead of watching the scene and typing locators by hand.
 
-Everything runs **locally and offline** (WhisperX + pyannote). No audio leaves
-your machine, so it's safe for unreleased / embargoed rushes.
+Everything runs **locally and offline** (Whisper transcription + sherpa-onnx speaker
+diarization). No audio leaves your machine, so it's safe for unreleased / embargoed
+rushes — and there's no account or token to set up.
 
 ## How it works
 
@@ -24,16 +25,24 @@ right timecode, on the track you choose.
 ## Requirements
 
 - **Python 3.10–3.12** (the ML stack doesn't support 3.13+ yet).
-- **ffmpeg**: `brew install ffmpeg`
-- A **HuggingFace token** for speaker diarization (one-time, free):
-  1. Create a token at <https://huggingface.co/settings/tokens>.
-  2. Open [`pyannote/speaker-diarization-community-1`](https://huggingface.co/pyannote/speaker-diarization-community-1)
-     and click **Agree and access repository** to accept its conditions. (It's a
-     self-contained pipeline — no other models need accepting.)
-  3. Set it before running: `export HF_TOKEN=hf_xxx`
 
-Without `HF_TOKEN` the app still transcribes, but every line is one unlabelled
-speaker (no diarization).
+That's it. **Speaker separation works out of the box with no account and no token** —
+the default diarizer is `sherpa-onnx` with small, redistributable models (fetched by
+`scripts/fetch_diarization_models.sh`, bundled into the .app). Audio is decoded in-process
+by PyAV, so **no `ffmpeg` install is needed** either.
+
+### Optional: higher-accuracy diarization with pyannote
+
+For a marginal accuracy gain you can switch to pyannote, which needs a free
+**HuggingFace token** (one-time):
+
+1. Create a token at <https://huggingface.co/settings/tokens>.
+2. Open [`pyannote/speaker-diarization-community-1`](https://huggingface.co/pyannote/speaker-diarization-community-1)
+   and click **Agree and access repository** to accept its conditions.
+3. Run with `AVID_DIARIZER=pyannote HF_TOKEN=hf_xxx …` (or paste the token in the UI).
+
+> The experimental Parakeet ASR engine (`AVID_ASR_ENGINE=parakeet`) still needs the
+> `ffmpeg` CLI (`brew install ffmpeg`); the default Whisper path does not.
 
 ## Setup
 
@@ -77,27 +86,35 @@ The server reads your HuggingFace token from a gitignored `.env` at startup
 (`cp .env.example .env`, then put your token after `HF_TOKEN=`). An `export
 HF_TOKEN=hf_xxx` in the shell still works and takes precedence if set.
 
-## Share with a colleague (another Apple Silicon Mac)
+## Distribute it (one-download .app)
 
-There's no single installer — the GPU speed needs each Mac's own Metal, so the app
-isn't a frozen bundle. Sharing means a one-time setup on their machine:
+The app can be frozen into a **single signed, notarized `.dmg`** that anyone on an
+Apple-Silicon Mac downloads, drags to Applications, and launches — no Python, no pip,
+no `brew`, **no HuggingFace token**. Speaker separation works out of the box because the
+(token-free) diarization models are bundled.
 
-1. Push this project to a **private GitHub repo** (see below) and have them
-   `git clone` it. (Cloning avoids macOS quarantining the files.)
-2. They install **Python 3.10–3.12** and **ffmpeg** (`brew install ffmpeg`).
-3. They run **`./setup.command`** once. It installs everything and asks for *their
-   own* free HuggingFace token (each person uses their own — never share yours).
-4. They double-click **`AvidMarkup.app`**.
+```bash
+pip install -e ".[ml,app,build]"
+./packaging/build_app.sh              # local build + ad-hoc sign (validate on this Mac)
+./packaging/build_app.sh --release    # Developer-ID sign + notarize + .dmg (for sharing)
+```
 
-First transcription on a new machine downloads the speech models (~1–6 GB); that
-run is slower, then it's cached.
+Release mode needs an Apple Developer account ($99/yr) and two env vars
+(`DEVELOPER_ID`, `AC_PROFILE`) — without notarization, macOS Gatekeeper blocks a
+downloaded app. The frozen bundle is ~1.3 GB; the first transcription still downloads
+the Whisper speech model (~1.5 GB), then it's cached. See `packaging/` for the spec,
+entitlements, and build script.
+
+> Per-machine dev setup (no freeze) still works too: `git clone`, install
+> **Python 3.10–3.12**, run **`./setup.command`**, double-click **`AvidMarkup.app`**.
 
 ### Privacy / fully offline
 
 All transcription, alignment, and diarization run **on your machine** — there is no
 transcription/AI API and **no audio ever leaves the box**, which is the point for
-embargoed rushes. `HF_TOKEN` is only a one-time download key for the gated pyannote
-model; it is not a metered/paid API token.
+embargoed rushes. The default diarizer needs no token at all. (`HF_TOKEN`, if you opt
+into the pyannote diarizer, is only a one-time model-download key — not a metered/paid
+API token.)
 
 After the models are cached (first run), the only remaining network activity is a
 HuggingFace "is there a newer version?" version check at load time — no audio is
