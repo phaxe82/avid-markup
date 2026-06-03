@@ -20,12 +20,16 @@ def test_clustering_params_default(monkeypatch):
     assert _clustering_params(None, None) == (-1, 0.65)
 
 
-def test_clustering_params_exact_count(monkeypatch):
+def test_clustering_params_uses_any_count_hint(monkeypatch):
     monkeypatch.delenv("AVID_DIARIZE_THRESHOLD", raising=False)
-    # min == max → pin the cluster count.
+    # An exact count pins num_clusters (the over-clustering fix for long scenes).
     assert _clustering_params(3, 3) == (3, 0.65)
-    # A range (min != max) can't map to sherpa's exact-count API → threshold mode.
-    assert _clustering_params(2, 5) == (-1, 0.65)
+    # Max alone is honoured (previously ignored — the bug behind 16 clusters/2 speakers).
+    assert _clustering_params(None, 2) == (2, 0.65)
+    # Min alone is honoured too.
+    assert _clustering_params(2, None) == (2, 0.65)
+    # A range can't map to sherpa's exact-count API → prefer max.
+    assert _clustering_params(2, 5) == (5, 0.65)
 
 
 def test_clustering_params_threshold_override(monkeypatch):

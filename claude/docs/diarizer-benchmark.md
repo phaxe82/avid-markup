@@ -45,5 +45,24 @@ comparable to pyannote-on-MPS (~6 min) and with no MPS-op fragility. onnxruntime
 **Caveats / residual gap:** pyannote is the *reference*, not ground truth, and these are
 noisy clips — 67–73% agreement is a real but acceptable step down, absorbed downstream by
 the LLM speaker-correction pass and manual reassignment. pyannote stays available as an
-opt-in higher-accuracy path (`AVID_DIARIZER=pyannote`, needs a token). Worth re-checking
-on a clean scripted-drama scene, where both should score higher.
+opt-in higher-accuracy path (`AVID_DIARIZER=pyannote`, needs a token).
+
+## Follow-up: threshold clustering over-splits on long scenes
+
+The 5-min benchmarks above hid a problem that only shows on full scenes. On a real
+**63-minute, 2-speaker** scene, threshold clustering badly over-splits as the same two
+voices drift over the hour:
+
+| mode (12-min chunk of that scene) | speakers |
+|---|---|
+| threshold 0.65 (default) | 12 |
+| threshold 0.72 | 8 |
+| threshold 0.80 | 7 |
+| threshold 0.88 | 4 |
+| **force num_clusters = 2** | **2** ✓ |
+
+No single threshold fixes it (even 0.88 → 4 for 2 speakers), and raising it globally risks
+*merging* distinct speakers (unrecoverable). **Fix:** `_clustering_params` now uses any
+speaker-count hint (UI Min/**Max** speakers) as the exact `num_clusters`, and the UI nudges
+users to enter the cast size. With no hint we keep threshold 0.65 (over-clustering is
+recoverable via label-then-merge; under-clustering is not).

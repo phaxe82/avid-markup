@@ -82,14 +82,19 @@ def _clustering_params(min_speakers: int | None, max_speakers: int | None) -> tu
     """Map the UI's min/max speaker hints onto sherpa's clustering.
 
     sherpa supports either an *exact* cluster count or a distance threshold — not a
-    range. So we only pin `num_clusters` when an exact count is known (min == max);
-    otherwise we cluster by `threshold` (tunable via AVID_DIARIZE_THRESHOLD). The 0.65
-    default was chosen by A/B benchmark against pyannote for the WeSpeaker ResNet34
-    embedding — it matched pyannote's speaker count on two real scenes.
+    range. **Any** speaker-count hint is therefore used as the exact `num_clusters`
+    (max preferred, else min). This is the reliable fix for long scenes: with no count,
+    pure threshold clustering over-splits badly — the same two voices drift over a
+    30–60 min scene and keep spawning clusters (e.g. ~12 clusters for a 2-speaker hour),
+    so passing the cast size collapses it to exactly that many. With no hint at all we
+    fall back to the distance `threshold` (tunable via AVID_DIARIZE_THRESHOLD): safe
+    (over-clustering is recoverable via the label-then-merge UX) but imprecise on long
+    scenes — which is why the UI nudges the user to enter a speaker count.
     """
     threshold = float(os.environ.get("AVID_DIARIZE_THRESHOLD", "0.65"))
-    if min_speakers and max_speakers and min_speakers == max_speakers:
-        return int(min_speakers), threshold
+    target = max_speakers or min_speakers
+    if target:
+        return int(target), threshold
     return -1, threshold
 
 
