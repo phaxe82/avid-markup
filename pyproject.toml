@@ -16,6 +16,11 @@ dependencies = [
 # web app and unit tests don't require torch/pyannote to be present.
 ml = [
     "whisperx>=3.1",
+    # Default speaker diarization: token-free, fully offline, redistributable models.
+    # Runs on onnxruntime (already pulled in by whisperx), so it works without a
+    # HuggingFace token or gated-model terms. pyannote stays as an optional
+    # higher-accuracy path (AVID_DIARIZER=pyannote) for users with a token.
+    "sherpa-onnx>=1.10",
     # GPU transcription on Apple Silicon (much faster than CPU faster-whisper).
     "mlx-whisper>=0.4; platform_system=='Darwin' and platform_machine=='arm64'",
     # Local LLM for the speaker-label correction pass (Apple Silicon GPU).
@@ -34,6 +39,13 @@ dev = [
 # and points a pywebview/WKWebView window at it (see launcher.py).
 app = [
     "pywebview>=5.0",
+]
+# Tooling to freeze the app into a signed, notarized one-download .dmg. PyInstaller
+# bundles the runtime + ML stack; dmgbuild packages the .dmg. Audio is decoded by PyAV
+# (LGPL ffmpeg libraries, already a whisperx dependency) — so no ffmpeg binary is shipped.
+build = [
+    "pyinstaller>=6.6",
+    "dmgbuild>=1.6",
 ]
 
 [tool.pytest.ini_options]

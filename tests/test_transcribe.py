@@ -2,6 +2,7 @@ from backend.transcribe import (
     TranscriptSegment,
     _asr_engine,
     _assign_speakers_by_overlap,
+    _diarizer,
     _parakeet_available,
     _pick_torch_device,
     _representative_samples,
@@ -13,6 +14,13 @@ def test_asr_engine_default_and_override(monkeypatch):
     assert _asr_engine() == "whisper"
     monkeypatch.setenv("AVID_ASR_ENGINE", "Parakeet")  # case-insensitive
     assert _asr_engine() == "parakeet"
+
+
+def test_diarizer_default_is_sherpa_and_override(monkeypatch):
+    monkeypatch.delenv("AVID_DIARIZER", raising=False)
+    assert _diarizer() == "sherpa"  # token-free default
+    monkeypatch.setenv("AVID_DIARIZER", "PyAnnote")  # case-insensitive
+    assert _diarizer() == "pyannote"
 
 
 def test_parakeet_disabled_by_env(monkeypatch):

@@ -50,9 +50,9 @@ async function init() {
   $("model-size").value = cfg.model_size || "small";
   const note = $("diar-note");
   if (cfg.diarization_enabled) {
-    note.textContent = "Speaker separation is on — each voice will be separated automatically.";
+    note.textContent = "Speaker separation is on — each voice is separated automatically (no account or token needed).";
   } else {
-    note.textContent = "Speaker separation is off — add a free HuggingFace token to turn it on (one-time).";
+    note.textContent = "Speaker separation is unavailable — you can enable it with a free HuggingFace token (one-time).";
     note.classList.add("warn");
     $("token-card").classList.remove("hidden");
   }

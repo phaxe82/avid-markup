@@ -21,7 +21,8 @@ import urllib.error
 import urllib.request
 from pathlib import Path
 
-import webview
+# `webview` is imported lazily inside main() (GUI path only) so the --serve server
+# child doesn't initialise AppKit.
 
 BASE_DIR = Path(__file__).resolve().parent
 
@@ -73,15 +74,31 @@ def _server_env() -> dict[str, str]:
 
 
 def _start_server(port: int) -> subprocess.Popen:
-    """Launch the uvicorn server in its own process group (so we can reap the whole
-    group on quit), with Homebrew on PATH so ffmpeg is found under a GUI launch."""
+    """Launch the server in its own process group (so we can reap the whole group on
+    quit). In dev that's `python -m uvicorn`; in the frozen .app `sys.executable` is the
+    app binary (not python), so it re-execs *itself* with --serve to run the server."""
+    if getattr(sys, "frozen", False):
+        cmd = [sys.executable, "--serve", "--port", str(port)]
+    else:
+        cmd = [sys.executable, "-m", "uvicorn", "backend.app:app", "--port", str(port)]
     return subprocess.Popen(
-        [sys.executable, "-m", "uvicorn", "backend.app:app", "--port", str(port)],
+        cmd,
         cwd=str(BASE_DIR),
         env=_server_env(),
         start_new_session=True,
         stderr=subprocess.PIPE,
     )
+
+
+def _serve_blocking() -> None:
+    """Child-process entry: run the FastAPI server (blocking). The frozen binary re-execs
+    itself with `--serve --port N` to reach here, since it can't spawn `python -m uvicorn`."""
+    import uvicorn
+
+    from backend.app import app as fastapi_app
+
+    port = int(sys.argv[sys.argv.index("--port") + 1])
+    uvicorn.run(fastapi_app, host="127.0.0.1", port=port, log_level="warning")
 
 
 def _wait_until_ready(port: int, proc: subprocess.Popen) -> str | None:
@@ -120,6 +137,13 @@ def _stop_server(proc: subprocess.Popen) -> None:
 
 
 def main() -> None:
+    # Frozen-app server child: `AvidMarkup --serve --port N` runs the server and exits.
+    if "--serve" in sys.argv:
+        _serve_blocking()
+        return
+
+    import webview
+
     port = _free_port()
     proc = _start_server(port)
     atexit.register(_stop_server, proc)
